@@ -110,23 +110,25 @@
 }
 
 - (void)prefetchURLs:(NSArray *)urls progress:(SDWebImagePrefetcherProgressBlock)progressBlock completed:(SDWebImagePrefetcherCompletionBlock)completionBlock {
-    [self cancelPrefetching]; // Prevent duplicate prefetch request
-    self.startedTime = CFAbsoluteTimeGetCurrent();
-    self.prefetchURLs = urls;
-    self.completionBlock = completionBlock;
-    self.progressBlock = progressBlock;
+    dispatch_async(self.prefetcherQueue, ^{
+        [self cancelPrefetching]; // Prevent duplicate prefetch request
+        self.startedTime = CFAbsoluteTimeGetCurrent();
+        self.prefetchURLs = urls;
+        self.completionBlock = completionBlock;
+        self.progressBlock = progressBlock;
 
-    if (urls.count == 0) {
-        if (completionBlock) {
-            completionBlock(0,0);
+        if (urls.count == 0) {
+            if (completionBlock) {
+                completionBlock(0,0);
+            }
+        } else {
+            // Starts prefetching from the very first image on the list with the max allowed concurrency
+            NSUInteger listCount = self.prefetchURLs.count;
+            for (NSUInteger i = 0; i < self.maxConcurrentDownloads && self.requestedCount < listCount; i++) {
+                [self startPrefetchingAtIndex:i];
+            }
         }
-    } else {
-        // Starts prefetching from the very first image on the list with the max allowed concurrency
-        NSUInteger listCount = self.prefetchURLs.count;
-        for (NSUInteger i = 0; i < self.maxConcurrentDownloads && self.requestedCount < listCount; i++) {
-            [self startPrefetchingAtIndex:i];
-        }
-    }
+    });
 }
 
 - (void)cancelPrefetching {
